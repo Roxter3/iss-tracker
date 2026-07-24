@@ -108,6 +108,9 @@ aside::-webkit-scrollbar-thumb{background:var(--line-2);border-radius:3px}
 
 .side-panel-grow{flex:1;min-height:0}
 .about{font-size:12px;line-height:1.6;color:var(--ink-2);margin:0}
+.credit{font-family:var(--font-mono);font-size:9.5px;color:var(--muted);margin:10px 0 0}
+.credit a{color:var(--muted)}
+.credit a:hover{color:var(--accent)}
 
 /* ---------- tiritas de arrastre ---------- */
 .vsizer,.hsizer{background:var(--panel);position:relative;touch-action:none}

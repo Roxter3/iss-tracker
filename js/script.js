@@ -8,8 +8,16 @@ const POLL_MS = 5000; // cada cuánto preguntamos la posición actual
 const TRACK_POINTS = 8; // cuántos puntos pasados pedimos para el trazo
 const TRACK_SPAN_SEC = 180; // separados por 3 minutos entre sí
 
-// manchas suaves que sugieren continentes sobre el globo (estilizado,
-// no es un mapa geográfico preciso)
+// Textura real de la Tierra (proyección equirectangular, basada en
+// datos de la NASA), de Solar System Scope, con licencia CC BY 4.0:
+// https://commons.wikimedia.org/wiki/File:Solarsystemscope_texture_2k_earth_daymap.jpg
+// La usamos para "leer" el color real de cada punto del planeta, en vez
+// de dibujar manchas de un solo color donde creemos que hay tierra.
+const EARTH_TEXTURE_URL = "https://upload.wikimedia.org/wikipedia/commons/c/c3/Solarsystemscope_texture_2k_earth_daymap.jpg";
+
+// manchas suaves que sugieren continentes: se usan SOLO como respaldo,
+// por si la textura de arriba no llega a cargar (sin internet, el CDN
+// caído, etc.). Así el globo nunca se queda vacío.
 const CONTINENTS = [
   { latC: 45,  lonC: -100, latR: 25, lonR: 35 }, // Norteamérica
   { latC: -18, lonC: -60,  latR: 30, lonR: 20 }, // Sudamérica
@@ -21,6 +29,69 @@ const CONTINENTS = [
 
 function nowClock() {
   return new Date().toISOString().substring(11, 19) + "Z";
+}
+
+// ============================================================
+// TEXTURA -> PUNTOS
+// No hacemos un mapeo de textura "de verdad" (eso pide WebGL). En vez
+// de eso, muestreamos el color real de la imagen en un montón de
+// puntos de latitud/longitud, UNA sola vez cuando carga la imagen, y
+// guardamos esos puntos con su color ya calculado. Después, en cada
+// fotograma, solo hace falta proyectarlos y dibujar un puntito de ese
+// color: es la misma idea del "globo de puntos" que ya teníamos, nada
+// más que ahora el color de cada punto es el de la Tierra de verdad.
+// ============================================================
+let texturePoints = null; // null hasta que la imagen termine de cargar (o falle)
+
+function loadEarthTexture() {
+  const img = new Image();
+  img.crossOrigin = "anonymous"; // necesario para poder leer los colores del canvas después
+  img.onload = () => {
+    const off = document.createElement("canvas");
+    off.width = img.width;
+    off.height = img.height;
+    const octx = off.getContext("2d");
+    octx.drawImage(img, 0, 0);
+
+    let sampled;
+    try {
+      sampled = octx.getImageData(0, 0, off.width, off.height);
+    } catch (e) {
+      // si por lo que sea el navegador no nos deja leer los colores (el
+      // canvas queda "manchado"), no rompemos nada: seguimos con el
+      // globo de respaldo, sin textura real
+      return;
+    }
+    texturePoints = buildTexturePoints(sampled, off.width, off.height);
+  };
+  img.onerror = () => {
+    // sin internet o el archivo no cargó: el globo de respaldo se queda
+    // como está, la página sigue funcionando igual
+  };
+  img.src = EARTH_TEXTURE_URL;
+}
+
+function buildTexturePoints(imgData, iw, ih) {
+  const points = [];
+  const step = 2.5; // grados entre cada punto muestreado: más chico = más detalle, pero más lento
+  for (let lat = -88; lat <= 88; lat += step) {
+    for (let lon = -180; lon < 180; lon += step) {
+      // de latitud/longitud a coordenadas de píxel dentro de la imagen
+      const u = Math.min(iw - 1, Math.max(0, Math.floor(((lon + 180) / 360) * iw)));
+      const v = Math.min(ih - 1, Math.max(0, Math.floor(((90 - lat) / 180) * ih)));
+      const idx = (v * iw + u) * 4;
+      const r = imgData.data[idx], g = imgData.data[idx + 1], b = imgData.data[idx + 2];
+
+      // el océano es azul bien dominante en esta textura: lo salteamos,
+      // así el globo no queda cubierto de puntos y los continentes
+      // resaltan más (el fondo del globo ya sugiere el océano por sí solo)
+      const isOcean = b > r + 20 && b > g + 5;
+      if (isOcean) continue;
+
+      points.push({ lat, lon, color: `${r},${g},${b}` });
+    }
+  }
+  return points;
 }
 
 // ============================================================
@@ -228,6 +299,29 @@ function drawGraticule() {
 }
 
 function drawContinents() {
+  if (texturePoints) drawTexturedContinents();
+  else drawFallbackContinents();
+}
+
+// el globo "de verdad": un puntito por cada lugar de tierra firme, con
+// su color real tomado de la textura (ver buildTexturePoints)
+function drawTexturedContinents() {
+  for (const pt of texturePoints) {
+    const p = project(pt.lat, pt.lon, rotY, tiltX);
+    if (p.z < 0.03) continue;
+    const sx = CX + p.x * R, sy = CY - p.y * R;
+    fgx.globalAlpha = 0.55 + p.z * 0.4; // más cerca del centro del globo, más opaco
+    fgx.fillStyle = `rgb(${pt.color})`;
+    fgx.beginPath();
+    fgx.arc(sx, sy, 1.4, 0, Math.PI * 2);
+    fgx.fill();
+  }
+  fgx.globalAlpha = 1;
+}
+
+// respaldo: las manchas estilizadas de siempre, mientras la textura real
+// no haya terminado de cargar (o si no llegó a cargar nunca)
+function drawFallbackContinents() {
   fgx.fillStyle = "rgba(180,170,230,0.55)";
   for (const c of CONTINENTS) {
     for (let dlat = -c.latR; dlat <= c.latR; dlat += 5) {
@@ -237,7 +331,7 @@ function drawContinents() {
         const p = project(c.latC + dlat, c.lonC + dlon, rotY, tiltX);
         if (p.z < 0.05) continue;
         const sx = CX + p.x * R, sy = CY - p.y * R;
-        fgx.globalAlpha = 0.3 + p.z * 0.45; // más cerca del centro del globo, más opaco
+        fgx.globalAlpha = 0.3 + p.z * 0.45;
         fgx.beginPath();
         fgx.arc(sx, sy, 1.3, 0, Math.PI * 2);
         fgx.fill();
@@ -473,6 +567,7 @@ setupResizer({
 // ============================================================
 resize();
 tickClock();
+loadEarthTexture();
 pushFeed("Connecting to live ISS telemetry feed…", "info");
 fetchTrackHistory().then(fetchCurrent);
 setInterval(fetchCurrent, POLL_MS);

@@ -12,7 +12,7 @@ npx serve .
 
 ## Qué tiene
 
-- Globo 3D estilizado, hecho a mano con proyección esférica (latitud/longitud → x,y,z → pantalla), sin ninguna librería de gráficos ni WebGL: solo trigonometría y `<canvas>`.
+- Globo 3D hecho a mano con proyección esférica (latitud/longitud → x,y,z → pantalla), sin ninguna librería de gráficos ni WebGL: solo trigonometría y `<canvas>`. Los continentes usan el color real de una textura satelital (no son manchas inventadas): se muestrea la imagen una sola vez al cargar, y ese resultado ya sirve para dibujar todos los fotogramas siguientes.
 - Posición real de la ISS, actualizada cada 5 segundos desde [wheretheiss.at](https://wheretheiss.at/), con altitud, velocidad y si está iluminada por el sol o en la sombra de la Tierra.
 - El globo sigue a la ISS solo (gira de a poco para mantenerla de frente); se puede arrastrar para mirar alrededor, y vuelve a seguirla sola a los pocos segundos, o al tocar "Re-center on ISS".
 - Trazo de la órbita reciente (últimos ~24 minutos), pedido a la misma API.
@@ -22,7 +22,7 @@ npx serve .
 
 ## Stack
 
-HTML, CSS y JavaScript puro (sin frameworks ni build). Tipografías Rajdhani y JetBrains Mono desde Google Fonts. Datos en vivo de la API pública y gratuita de [wheretheiss.at](https://wheretheiss.at/w/developer).
+HTML, CSS y JavaScript puro (sin frameworks ni build). Tipografías Rajdhani y JetBrains Mono desde Google Fonts. Datos en vivo de la API pública y gratuita de [wheretheiss.at](https://wheretheiss.at/w/developer). Textura de la Tierra de [Solar System Scope](https://www.solarsystemscope.com/textures/) (CC BY 4.0), vía Wikimedia Commons.
 
 ## Estructura del proyecto
 
