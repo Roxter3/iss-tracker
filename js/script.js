@@ -1,4 +1,91 @@
 // ============================================================
+// TEXTOS (ES / EN)
+// Los textos fijos (etiquetas, títulos) son simples strings. Los
+// mensajes de la bitácora son funciones porque necesitan "rellenarse"
+// con datos reales (la latitud, la altitud) cada vez que se usan.
+// ============================================================
+const I18N = {
+  en: {
+    title: "ISS Tracker — Live Orbital Position",
+    subTitle: "LIVE ORBITAL POSITION",
+    live: "LIVE",
+    offline: "OFFLINE",
+    recenter: "RE-CENTER ON ISS",
+    lblAlt: "Altitude",
+    lblSpeed: "Velocity",
+    lblLat: "Latitude",
+    lblLon: "Longitude",
+    acquiring: "Acquiring signal…",
+    sunlight: "In sunlight",
+    eclipsed: "In Earth's shadow",
+    missionFacts: "Mission Facts",
+    factLaunched: "Launched",
+    factPeriod: "Orbital period",
+    factIncl: "Inclination",
+    factCrew: "Crew capacity",
+    factOrbits: "Orbits / day",
+    aboutTitle: "About this project",
+    aboutText: "The station's position updates every few seconds from a public, real-time tracking API — this isn't simulated data. Drag the globe to look around; it re-centers on the ISS automatically after a moment.",
+    creditText: 'Earth texture by <a href="https://www.solarsystemscope.com/textures/" target="_blank" rel="noopener">Solar System Scope</a>, CC BY 4.0.',
+    hint: "drag to look around",
+    telemetryLog: "Telemetry Log",
+    updated: "UPDATED",
+    feed: {
+      connecting: () => "Connecting to live ISS telemetry feed…",
+      positionUpdate: (lat, lon, alt) => `Position update — lat ${lat}°, lon ${lon}°, alt ${alt} km`,
+      enteredSunlight: () => "ISS entered sunlight",
+      enteredShadow: () => "ISS entered Earth's shadow (eclipsed)",
+      connectionLost: () => "Lost connection to tracking API — retrying…",
+      connectionRestored: () => "Connection to tracking API restored",
+    },
+  },
+  es: {
+    title: "ISS Tracker — Posición Orbital en Vivo",
+    subTitle: "POSICIÓN ORBITAL EN VIVO",
+    live: "EN VIVO",
+    offline: "SIN CONEXIÓN",
+    recenter: "RECENTRAR EN LA ISS",
+    lblAlt: "Altitud",
+    lblSpeed: "Velocidad",
+    lblLat: "Latitud",
+    lblLon: "Longitud",
+    acquiring: "Adquiriendo señal…",
+    sunlight: "Iluminada por el sol",
+    eclipsed: "En la sombra de la Tierra",
+    missionFacts: "Datos de la Misión",
+    factLaunched: "Lanzamiento",
+    factPeriod: "Período orbital",
+    factIncl: "Inclinación",
+    factCrew: "Capacidad de tripulación",
+    factOrbits: "Órbitas / día",
+    aboutTitle: "Sobre este proyecto",
+    aboutText: "La posición de la estación se actualiza cada pocos segundos desde una API pública en vivo: no son datos simulados. Arrastra el globo para mirar alrededor; vuelve a centrarse en la ISS solo, después de un momento.",
+    creditText: 'Textura de la Tierra de <a href="https://www.solarsystemscope.com/textures/" target="_blank" rel="noopener">Solar System Scope</a>, CC BY 4.0.',
+    hint: "arrastra para mirar alrededor",
+    telemetryLog: "Bitácora de Telemetría",
+    updated: "ACTUALIZADO",
+    feed: {
+      connecting: () => "Conectando a la telemetría en vivo de la ISS…",
+      positionUpdate: (lat, lon, alt) => `Actualización de posición — lat ${lat}°, lon ${lon}°, alt ${alt} km`,
+      enteredSunlight: () => "La ISS entró a la luz del sol",
+      enteredShadow: () => "La ISS entró a la sombra de la Tierra (eclipsada)",
+      connectionLost: () => "Se perdió la conexión con la API — reintentando…",
+      connectionRestored: () => "Conexión con la API restablecida",
+    },
+  },
+};
+
+function getSavedLang() {
+  try {
+    const saved = localStorage.getItem("iss-tracker-lang");
+    if (saved === "es" || saved === "en") return saved;
+  } catch (e) {
+    // localStorage puede fallar en navegación privada; usamos el default
+  }
+  return "en";
+}
+
+// ============================================================
 // DATOS REALES: la posición de la ISS viene de una API pública en
 // vivo (wheretheiss.at), no está inventada. Cada tanto le preguntamos
 // "¿dónde estás ahora?" y dibujamos la respuesta sobre el globo.
@@ -100,23 +187,30 @@ function buildTexturePoints(imgData, iw, ih) {
 const state = {
   iss: null,   // { lat, lon, alt, vel, visibility, ts } — null hasta el primer dato real
   feed: [],
+  lang: getSavedLang(),
 };
 let track = [];          // historial de posiciones, para el trazo de la órbita
 let lastVisibility = null;
 let pollCount = 0;
 let connectionLost = false;
 
-function pushFeed(text, sev = "info") {
-  state.feed.unshift({ ts: nowClock(), text, sev });
+// Guardamos el "tipo" de evento (kind) y sus datos (args), no el texto
+// final: así, si el usuario cambia de idioma después, podemos volver a
+// armar cada línea de la bitácora en el otro idioma sin perder el historial.
+function pushFeed(kind, args, sev = "info") {
+  state.feed.unshift({ ts: nowClock(), kind, args, sev });
   if (state.feed.length > 60) state.feed.pop();
   renderFeed();
+}
+function feedText(entry) {
+  return I18N[state.lang].feed[entry.kind](...entry.args);
 }
 function renderFeed() {
   const wrap = document.getElementById("feedList");
   wrap.innerHTML = state.feed.map((e) => `
     <div class="ev">
       <span class="ts">${e.ts}</span>
-      <span class="tx">${e.text}</span>
+      <span class="tx">${feedText(e)}</span>
       <span class="sev ${e.sev}">${e.sev}</span>
     </div>`).join("");
   document.getElementById("feedN").textContent = state.feed.length;
@@ -415,13 +509,13 @@ async function fetchCurrent() {
     if (connectionLost) {
       connectionLost = false;
       setLiveStatus(true);
-      pushFeed("Connection to tracking API restored", "info");
+      pushFeed("connectionRestored", [], "info");
     }
   } catch (err) {
     if (!connectionLost) {
       connectionLost = true;
       setLiveStatus(false);
-      pushFeed("Lost connection to tracking API — retrying…", "crit");
+      pushFeed("connectionLost", [], "crit");
     }
   }
 }
@@ -452,11 +546,10 @@ function onNewPosition(data) {
   targetRotY = ((-data.longitude % 360) + 360) % 360;
 
   renderKpis();
-  document.getElementById("updatedTag").textContent = "UPDATED " + nowClock();
+  document.getElementById("updatedTag").textContent = `${I18N[state.lang].updated} ${nowClock()}`;
 
   if (lastVisibility && lastVisibility !== data.visibility) {
-    const text = data.visibility === "daylight" ? "ISS entered sunlight" : "ISS entered Earth's shadow (eclipsed)";
-    pushFeed(text, "warn");
+    pushFeed(data.visibility === "daylight" ? "enteredSunlight" : "enteredShadow", [], "warn");
   }
   lastVisibility = data.visibility;
 
@@ -464,13 +557,13 @@ function onNewPosition(data) {
   // ruido); una de cada tres alcanza para que la bitácora se sienta viva
   pollCount++;
   if (pollCount % 3 === 0) {
-    pushFeed(`Position update — lat ${data.latitude.toFixed(2)}°, lon ${data.longitude.toFixed(2)}°, alt ${Math.round(data.altitude)} km`, "info");
+    pushFeed("positionUpdate", [data.latitude.toFixed(2), data.longitude.toFixed(2), Math.round(data.altitude)], "info");
   }
 }
 
 function setLiveStatus(ok) {
   document.getElementById("liveTag").classList.toggle("lost", !ok);
-  document.getElementById("liveText").textContent = ok ? "LIVE" : "OFFLINE";
+  document.getElementById("liveText").textContent = ok ? I18N[state.lang].live : I18N[state.lang].offline;
 }
 
 // ============================================================
@@ -487,7 +580,7 @@ function renderKpis() {
   const visEl = document.getElementById("visBadge");
   visEl.classList.remove("daylight", "eclipsed");
   visEl.classList.add(s.visibility === "daylight" ? "daylight" : "eclipsed");
-  document.getElementById("visText").textContent = s.visibility === "daylight" ? "In sunlight" : "In Earth's shadow";
+  document.getElementById("visText").textContent = I18N[state.lang][s.visibility === "daylight" ? "sunlight" : "eclipsed"];
 }
 
 // ---------- reloj ----------
@@ -495,6 +588,45 @@ function tickClock() {
   document.getElementById("utcClock").textContent = nowClock();
 }
 setInterval(tickClock, 1000);
+
+// ---------- botón de idioma ----------
+// Cambia el idioma activo y vuelve a pintar todo lo que tiene texto: las
+// etiquetas fijas del HTML (marcadas con data-i18n), el crédito de la
+// textura (que lleva un link adentro, por eso se maneja aparte), la
+// bitácora completa (incluido lo que ya estaba escrito antes de cambiar
+// de idioma) y el resto de los textos que arma JavaScript.
+function applyLanguage(lang) {
+  state.lang = lang;
+  document.documentElement.lang = lang;
+  document.title = I18N[lang].title;
+
+  document.querySelectorAll("[data-i18n]").forEach((el) => {
+    el.textContent = I18N[lang][el.dataset.i18n];
+  });
+  document.querySelectorAll("#langSeg button").forEach((b) => {
+    b.classList.toggle("on", b.dataset.lang === lang);
+  });
+  document.getElementById("creditText").innerHTML = I18N[lang].creditText;
+
+  setLiveStatus(!connectionLost);
+  renderKpis();
+  renderFeed();
+  if (state.iss) {
+    document.getElementById("updatedTag").textContent = `${I18N[lang].updated} ${nowClock()}`;
+  }
+
+  try {
+    localStorage.setItem("iss-tracker-lang", lang);
+  } catch (e) {
+    // si el navegador bloquea localStorage no pasa nada grave
+  }
+}
+
+document.getElementById("langSeg").addEventListener("click", (e) => {
+  const btn = e.target.closest("button");
+  if (!btn) return;
+  applyLanguage(btn.dataset.lang);
+});
 
 // ---------- arrastrar para agrandar la barra lateral y la bitácora ----------
 // mismo mecanismo que en los otros dos proyectos: el ancho/alto vive en
@@ -567,8 +699,9 @@ setupResizer({
 // ============================================================
 resize();
 tickClock();
+applyLanguage(state.lang);
 loadEarthTexture();
-pushFeed("Connecting to live ISS telemetry feed…", "info");
+pushFeed("connecting", [], "info");
 fetchTrackHistory().then(fetchCurrent);
 setInterval(fetchCurrent, POLL_MS);
 

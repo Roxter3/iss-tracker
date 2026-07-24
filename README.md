@@ -19,6 +19,7 @@ npx serve .
 - Bitácora en vivo: actualizaciones de posición y avisos reales cuando la estación entra o sale de la sombra de la Tierra.
 - Si se pierde la conexión con la API, lo avisa (no se rompe en silencio) y reintenta solo.
 - Responsive, con los mismos paneles ajustables de mis otros proyectos.
+- Interfaz bilingüe (inglés / español) con un botón para cambiar de idioma; recuerda tu elección la próxima vez que abras la página.
 
 ## Stack
 

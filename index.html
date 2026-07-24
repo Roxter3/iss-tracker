@@ -13,18 +13,22 @@
 <body>
 <div class="app">
 
-  <!-- encabezado: marca, estado de conexión y reloj -->
+  <!-- encabezado: marca, estado de conexión, botón de idioma y reloj -->
   <header>
     <div class="brand">
       <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a1 1 0 0 1 1 1v2.06A8 8 0 0 1 19.94 11H22a1 1 0 1 1 0 2h-2.06A8 8 0 0 1 13 19.94V22a1 1 0 1 1-2 0v-2.06A8 8 0 0 1 4.06 13H2a1 1 0 1 1 0-2h2.06A8 8 0 0 1 11 4.06V2a1 1 0 0 1 1-1zm0 4a6 6 0 1 0 0 12 6 6 0 0 0 0-12zm0 3a3 3 0 1 1 0 6 3 3 0 0 1 0-6z"/></svg>
       <div>
         <h1>ISS <span>TRACKER</span></h1>
-        <div class="sub">LIVE ORBITAL POSITION</div>
+        <div class="sub" data-i18n="subTitle">LIVE ORBITAL POSITION</div>
       </div>
     </div>
     <div class="live" id="liveTag"><span class="pulse"></span><span id="liveText">LIVE</span></div>
     <div class="controls">
-      <button class="recenter" id="recenterBtn">RE-CENTER ON ISS</button>
+      <button class="recenter" id="recenterBtn" data-i18n="recenter">RE-CENTER ON ISS</button>
+      <div class="seg" id="langSeg">
+        <button class="on" data-lang="en">EN</button>
+        <button data-lang="es">ES</button>
+      </div>
     </div>
     <div class="clock"><span id="utcClock">00:00:00Z</span></div>
   </header>
@@ -33,48 +37,48 @@
   <aside>
     <div class="kpis">
       <div class="kpi cc">
-        <div class="lbl">Altitude</div>
+        <div class="lbl" data-i18n="lblAlt">Altitude</div>
         <div class="val sm" id="kpiAlt">— km</div>
       </div>
       <div class="kpi wc">
-        <div class="lbl">Velocity</div>
+        <div class="lbl" data-i18n="lblSpeed">Velocity</div>
         <div class="val sm" id="kpiSpeed">— km/h</div>
       </div>
       <div class="kpi">
-        <div class="lbl">Latitude</div>
+        <div class="lbl" data-i18n="lblLat">Latitude</div>
         <div class="val sm" id="kpiLat">—</div>
       </div>
       <div class="kpi">
-        <div class="lbl">Longitude</div>
+        <div class="lbl" data-i18n="lblLon">Longitude</div>
         <div class="val sm" id="kpiLon">—</div>
       </div>
     </div>
 
     <div class="visibility" id="visBadge">
       <span class="vdot"></span>
-      <span id="visText">Acquiring signal…</span>
+      <span id="visText" data-i18n="acquiring">Acquiring signal…</span>
     </div>
 
     <div>
-      <div class="panel-h">Mission Facts</div>
+      <div class="panel-h" data-i18n="missionFacts">Mission Facts</div>
       <div class="facts">
-        <div class="frow"><span class="k">Launched</span><span class="v">Nov 20, 1998</span></div>
-        <div class="frow"><span class="k">Orbital period</span><span class="v">~92.7 min</span></div>
-        <div class="frow"><span class="k">Inclination</span><span class="v">51.6°</span></div>
-        <div class="frow"><span class="k">Crew capacity</span><span class="v">7</span></div>
-        <div class="frow"><span class="k">Orbits / day</span><span class="v">~15.5</span></div>
+        <div class="frow"><span class="k" data-i18n="factLaunched">Launched</span><span class="v">Nov 20, 1998</span></div>
+        <div class="frow"><span class="k" data-i18n="factPeriod">Orbital period</span><span class="v">~92.7 min</span></div>
+        <div class="frow"><span class="k" data-i18n="factIncl">Inclination</span><span class="v">51.6°</span></div>
+        <div class="frow"><span class="k" data-i18n="factCrew">Crew capacity</span><span class="v">7</span></div>
+        <div class="frow"><span class="k" data-i18n="factOrbits">Orbits / day</span><span class="v">~15.5</span></div>
       </div>
     </div>
 
     <div class="side-panel-grow">
-      <div class="panel-h">About this project</div>
-      <p class="about">
+      <div class="panel-h" data-i18n="aboutTitle">About this project</div>
+      <p class="about" data-i18n="aboutText">
         The station's position updates every few seconds from a public,
         real-time tracking API — this isn't simulated data. Drag the
         globe to look around; it re-centers on the ISS automatically
         after a moment.
       </p>
-      <p class="credit">
+      <p class="credit" id="creditText">
         Earth texture by <a href="https://www.solarsystemscope.com/textures/" target="_blank" rel="noopener">Solar System Scope</a>, CC BY 4.0.
       </p>
     </div>
@@ -90,12 +94,12 @@
     <canvas id="fgcv"></canvas>
     <div class="corner tl"></div><div class="corner tr"></div><div class="corner bl"></div><div class="corner br"></div>
     <div class="stage-tag"><b>NORAD ID 25544</b><span id="updatedTag">—</span></div>
-    <div class="hint">drag to look around</div>
+    <div class="hint" data-i18n="hint">drag to look around</div>
   </div>
 
   <!-- bitácora de telemetría -->
   <div class="feed">
-    <div class="fh">Telemetry Log<span class="n" id="feedN"></span></div>
+    <div class="fh"><span data-i18n="telemetryLog">Telemetry Log</span><span class="n" id="feedN"></span></div>
     <div class="flist" id="feedList"></div>
   </div>
 
