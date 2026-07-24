@@ -20,6 +20,9 @@ npx serve .
 - Si se pierde la conexión con la API, lo avisa (no se rompe en silencio) y reintenta solo.
 - Responsive, con los mismos paneles ajustables de mis otros proyectos.
 - Interfaz bilingüe (inglés / español) con un botón para cambiar de idioma; recuerda tu elección la próxima vez que abras la página.
+- Línea del terminador día/noche real sobre el globo (calculada con el punto subsolar que devuelve la API), con los continentes oscurecidos del lado que ahora mismo está de noche.
+- Los números de telemetría (altitud, velocidad, latitud, longitud) se animan suavemente hacia el nuevo valor en vez de saltar de golpe cada 5 segundos.
+- Aviso de carga mientras llega el primer dato real, y meta tags para que el link se vea bien al compartirlo (LinkedIn, Twitter/X, WhatsApp).
 
 ## Stack
 
@@ -39,3 +42,7 @@ iss-tracker/
 ## Despliegue
 
 Al ser un archivo estático, se puede publicar gratis con GitHub Pages: Settings → Pages → Deploy from branch → rama `main`, carpeta raíz.
+
+### Imagen para compartir el link (opcional)
+
+El `<head>` ya tiene las etiquetas para que, al pegar el link en LinkedIn o Twitter/X, se vea una tarjeta con imagen. Falta subir esa imagen: sacale una captura a la página (1200×630px se ve bien), guardala como `og-image.png` en la raíz del proyecto, y subila al repositorio. Mientras no exista ese archivo, el link igual funciona, solo que sin la imagen de la tarjeta.

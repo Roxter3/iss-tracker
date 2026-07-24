@@ -140,6 +140,12 @@ aside::-webkit-scrollbar-thumb{background:var(--line-2);border-radius:3px}
 .corner.bl{bottom:12px;left:12px;border-right:0;border-top:0}
 .corner.br{bottom:12px;right:12px;border-left:0;border-top:0}
 
+/* overlay de "todavía no llegó el primer dato": se esconde solo apenas
+   llega la primera posición real (ver onNewPosition en script.js) */
+.stage-loading{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;gap:10px;background:rgba(5,4,13,.55);font-family:var(--font-mono);font-size:11px;letter-spacing:.14em;color:var(--ink-2);text-transform:uppercase;transition:opacity .4s ease}
+.stage-loading.hidden{opacity:0;pointer-events:none}
+.loading-dot{width:8px;height:8px;border-radius:50%;background:var(--cyan);box-shadow:0 0 8px var(--cyan);animation:pulse 1.2s infinite}
+
 /* ---------- bitácora ---------- */
 .feed{grid-area:feed;background:var(--panel);display:flex;flex-direction:column;overflow:hidden}
 .feed .fh{display:flex;align-items:center;gap:8px;padding:9px 15px;border-bottom:1px solid var(--line);font-family:var(--font-mono);font-size:9.5px;letter-spacing:.22em;color:var(--ink-2);text-transform:uppercase}

@@ -15,6 +15,7 @@ const I18N = {
     lblSpeed: "Velocity",
     lblLat: "Latitude",
     lblLon: "Longitude",
+    dirE: "E", dirW: "W", // letras de longitud: en español el oeste es "O", no "W"
     acquiring: "Acquiring signal…",
     sunlight: "In sunlight",
     eclipsed: "In Earth's shadow",
@@ -49,6 +50,7 @@ const I18N = {
     lblSpeed: "Velocidad",
     lblLat: "Latitud",
     lblLon: "Longitud",
+    dirE: "E", dirW: "O",
     acquiring: "Adquiriendo señal…",
     sunlight: "Iluminada por el sol",
     eclipsed: "En la sombra de la Tierra",
@@ -175,7 +177,10 @@ function buildTexturePoints(imgData, iw, ih) {
       const isOcean = b > r + 20 && b > g + 5;
       if (isOcean) continue;
 
-      points.push({ lat, lon, color: `${r},${g},${b}` });
+      // guardamos también el vector 3D de este punto (calculado una sola
+      // vez acá) para no tener que recalcularlo cada fotograma cuando
+      // más adelante haga falta saber si está de día o de noche
+      points.push({ lat, lon, color: `${r},${g},${b}`, vec: toVec3(lat, lon) });
     }
   }
   return points;
@@ -251,6 +256,71 @@ function project(lat, lon, rotYdeg, tiltXdeg) {
 function lerpAngle(current, target, t) {
   const diff = ((target - current + 540) % 360) - 180;
   return current + diff * t;
+}
+
+// ============================================================
+// TERMINADOR DÍA/NOCHE
+// La API nos da "solar_lat/solar_lon": el punto de la Tierra que en
+// este momento tiene al sol justo encima (el "mediodía solar"). A
+// partir de ahí se puede calcular tanto la línea que separa el día de
+// la noche, como saber si un punto cualquiera del globo está de día o
+// de noche, con matemática de vectores bastante simple.
+// ============================================================
+function toVec3(lat, lon) {
+  const latR = (lat * Math.PI) / 180, lonR = (lon * Math.PI) / 180;
+  return { x: Math.cos(latR) * Math.sin(lonR), y: Math.sin(latR), z: Math.cos(latR) * Math.cos(lonR) };
+}
+function dot3(a, b) { return a.x * b.x + a.y * b.y + a.z * b.z; }
+function cross3(a, b) {
+  return { x: a.y * b.z - a.z * b.y, y: a.z * b.x - a.x * b.z, z: a.x * b.y - a.y * b.x };
+}
+function normalize3(v) {
+  const m = Math.sqrt(v.x * v.x + v.y * v.y + v.z * v.z) || 1;
+  return { x: v.x / m, y: v.y / m, z: v.z / m };
+}
+
+let subSolarVec = null;      // el punto que tiene al sol justo encima, ahora mismo
+let terminatorPoints = [];   // la línea día/noche, ya calculada como lista de lat/lon
+
+// El terminador es, ni más ni menos, el círculo máximo formado por
+// todos los puntos que quedan exactamente a 90° del punto subsolar (el
+// horizonte del sol, visto desde cualquier lugar de ese círculo). Para
+// dibujarlo, buscamos dos direcciones perpendiculares al punto
+// subsolar (U y V) y recorremos el círculo que forman.
+function computeTerminator(solarLat, solarLon) {
+  const S = toVec3(solarLat, solarLon);
+  const arbitrary = Math.abs(S.y) < 0.9 ? { x: 0, y: 1, z: 0 } : { x: 1, y: 0, z: 0 };
+  const U = normalize3(cross3(S, arbitrary));
+  const V = cross3(S, U); // ya sale unitario: S y U ya son perpendiculares y unitarios
+
+  const pts = [];
+  for (let t = 0; t < 360; t += 2) {
+    const rad = (t * Math.PI) / 180;
+    const x = U.x * Math.cos(rad) + V.x * Math.sin(rad);
+    const y = U.y * Math.cos(rad) + V.y * Math.sin(rad);
+    const z = U.z * Math.cos(rad) + V.z * Math.sin(rad);
+    pts.push({ lat: (Math.asin(Math.max(-1, Math.min(1, y))) * 180) / Math.PI, lon: (Math.atan2(x, z) * 180) / Math.PI });
+  }
+  return pts;
+}
+
+function drawTerminator() {
+  if (!terminatorPoints.length) return;
+  fgx.strokeStyle = "rgba(251,191,36,0.55)"; // dorado, como el sol
+  fgx.lineWidth = 1.3;
+  let prev = null;
+  for (const { lat, lon } of terminatorPoints) {
+    const p = project(lat, lon, rotY, tiltX);
+    const visible = p.z > 0.01;
+    const sx = CX + p.x * R, sy = CY - p.y * R;
+    if (visible && prev && prev.visible) {
+      fgx.beginPath();
+      fgx.moveTo(prev.sx, prev.sy);
+      fgx.lineTo(sx, sy);
+      fgx.stroke();
+    }
+    prev = { sx, sy, visible };
+  }
 }
 
 // ============================================================
@@ -398,14 +468,30 @@ function drawContinents() {
 }
 
 // el globo "de verdad": un puntito por cada lugar de tierra firme, con
-// su color real tomado de la textura (ver buildTexturePoints)
+// su color real tomado de la textura (ver buildTexturePoints), y más
+// oscuro en el lado que ahora mismo está de noche
 function drawTexturedContinents() {
   for (const pt of texturePoints) {
     const p = project(pt.lat, pt.lon, rotY, tiltX);
     if (p.z < 0.03) continue;
     const sx = CX + p.x * R, sy = CY - p.y * R;
+
+    // el producto punto entre este punto y el punto subsolar nos dice
+    // si nos está dando el sol (positivo) o no (negativo); usamos ese
+    // valor para oscurecer de a poco, no de golpe, como en un atardecer
+    let brightness = 1;
+    if (subSolarVec) {
+      const d = dot3(pt.vec, subSolarVec);
+      brightness = d > 0.08 ? 1 : d < -0.08 ? 0.32 : 0.32 + ((d + 0.08) / 0.16) * 0.68;
+    }
+
     fgx.globalAlpha = 0.55 + p.z * 0.4; // más cerca del centro del globo, más opaco
-    fgx.fillStyle = `rgb(${pt.color})`;
+    if (brightness >= 1) {
+      fgx.fillStyle = `rgb(${pt.color})`;
+    } else {
+      const [r, g, b] = pt.color.split(",");
+      fgx.fillStyle = `rgb(${Math.round(r * brightness)},${Math.round(g * brightness)},${Math.round(b * brightness)})`;
+    }
     fgx.beginPath();
     fgx.arc(sx, sy, 1.4, 0, Math.PI * 2);
     fgx.fill();
@@ -491,6 +577,7 @@ function drawFrame() {
   drawGlobeBase();
   drawGraticule();
   drawContinents();
+  drawTerminator();
   drawGroundTrack();
   drawIssMarker();
 
@@ -535,6 +622,8 @@ async function fetchTrackHistory() {
 }
 
 function onNewPosition(data) {
+  const isFirstFix = !state.iss;
+
   state.iss = {
     lat: data.latitude, lon: data.longitude, alt: data.altitude,
     vel: data.velocity, visibility: data.visibility, ts: data.timestamp,
@@ -544,6 +633,17 @@ function onNewPosition(data) {
 
   // el globo gira de a poco hasta dejar la longitud actual de la ISS de frente
   targetRotY = ((-data.longitude % 360) + 360) % 360;
+
+  // dónde está el sol ahora mismo, para el terminador y para saber qué
+  // parte del globo está de noche (ver drawTerminator / drawTexturedContinents)
+  if (typeof data.solar_lat === "number" && typeof data.solar_lon === "number") {
+    subSolarVec = toVec3(data.solar_lat, data.solar_lon);
+    terminatorPoints = computeTerminator(data.solar_lat, data.solar_lon);
+  }
+
+  if (isFirstFix) {
+    document.getElementById("stageLoading").classList.add("hidden");
+  }
 
   renderKpis();
   document.getElementById("updatedTag").textContent = `${I18N[state.lang].updated} ${nowClock()}`;
@@ -569,18 +669,69 @@ function setLiveStatus(ok) {
 // ============================================================
 // INTERFAZ
 // ============================================================
+// Los números de telemetría cambian cada 5 segundos; si los reemplazamos
+// de golpe, la interfaz se siente "a los saltos". Estas dos funciones
+// animan el valor mostrado desde el número anterior hasta el nuevo, en
+// vez de reemplazarlo de una.
+const kpiAnimState = {}; // último valor mostrado (no el real) de cada KPI, para poder animar desde ahí
+function animateValue(id, newValue, formatFn, duration = 700) {
+  const el = document.getElementById(id);
+  const from = kpiAnimState[id] !== undefined ? kpiAnimState[id] : newValue;
+  runTween(from, newValue, duration, (v) => { el.textContent = formatFn(v); });
+  kpiAnimState[id] = newValue;
+}
+// igual que animateValue, pero para ángulos que pueden "dar la vuelta"
+// (la longitud pasa de +179° a -179° al cruzar el antimeridiano; sin
+// este ajuste, se animaría dando toda la vuelta larga por el medio)
+function animateAngle(id, newValue, formatFn, duration = 700) {
+  const el = document.getElementById(id);
+  let from = kpiAnimState[id] !== undefined ? kpiAnimState[id] : newValue;
+  const diff = newValue - from;
+  if (diff > 180) from += 360;
+  else if (diff < -180) from -= 360;
+  runTween(from, newValue, duration, (v) => { el.textContent = formatFn(v); });
+  kpiAnimState[id] = newValue;
+}
+function runTween(from, to, duration, onFrame) {
+  // primer pantallazo inmediato y SIN esperar a requestAnimationFrame:
+  // si la pestaña está en segundo plano, el navegador puede pausar rAF
+  // por completo, y no queremos que el número se quede pegado en el
+  // placeholder ("—") por eso
+  onFrame(from);
+  if (from === to) return; // nada que animar
+
+  const start = performance.now();
+  let done = false;
+  function step(now) {
+    if (done) return;
+    const t = Math.min(1, (now - start) / duration);
+    const eased = 1 - Math.pow(1 - t, 3); // ease-out: rápido al principio, suave al llegar
+    onFrame(from + (to - from) * eased);
+    if (t < 1) requestAnimationFrame(step);
+    else done = true;
+  }
+  requestAnimationFrame(step);
+
+  // red de seguridad: si rAF nunca llega a correr, igual queremos que el
+  // valor termine siendo el correcto, aunque sin la animación
+  setTimeout(() => {
+    if (!done) { done = true; onFrame(to); }
+  }, duration + 60);
+}
+
 function renderKpis() {
   const s = state.iss;
   if (!s) return;
-  document.getElementById("kpiAlt").textContent = `${Math.round(s.alt)} km`;
-  document.getElementById("kpiSpeed").textContent = `${Math.round(s.vel).toLocaleString("en-US")} km/h`;
-  document.getElementById("kpiLat").textContent = `${Math.abs(s.lat).toFixed(2)}°${s.lat >= 0 ? "N" : "S"}`;
-  document.getElementById("kpiLon").textContent = `${Math.abs(s.lon).toFixed(2)}°${s.lon >= 0 ? "E" : "W"}`;
+  const t = I18N[state.lang];
+  animateValue("kpiAlt", s.alt, (v) => `${Math.round(v)} km`);
+  animateValue("kpiSpeed", s.vel, (v) => `${Math.round(v).toLocaleString("en-US")} km/h`);
+  animateValue("kpiLat", s.lat, (v) => `${Math.abs(v).toFixed(2)}°${v >= 0 ? "N" : "S"}`);
+  animateAngle("kpiLon", s.lon, (v) => `${Math.abs(v).toFixed(2)}°${v >= 0 ? t.dirE : t.dirW}`);
 
   const visEl = document.getElementById("visBadge");
   visEl.classList.remove("daylight", "eclipsed");
   visEl.classList.add(s.visibility === "daylight" ? "daylight" : "eclipsed");
-  document.getElementById("visText").textContent = I18N[state.lang][s.visibility === "daylight" ? "sunlight" : "eclipsed"];
+  document.getElementById("visText").textContent = t[s.visibility === "daylight" ? "sunlight" : "eclipsed"];
 }
 
 // ---------- reloj ----------
