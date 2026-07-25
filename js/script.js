@@ -418,14 +418,21 @@ document.getElementById("recenterBtn").addEventListener("click", () => {
 
 // ---------- dibujo del globo, fotograma a fotograma ----------
 function drawGlobeBase() {
+  // Antes esto era bastante transparente (para dar sensación de "vidrio"),
+  // pero dejaba ver el fondo de estrellas a través del planeta, lo cual
+  // no ayuda a leer los continentes. Ahora es casi opaco de punta a
+  // punta: el degradé solo se usa para dar sensación de volumen (más
+  // claro donde "pega la luz", más oscuro en el borde), no para
+  // transparentar el globo.
   const grad = fgx.createRadialGradient(CX - R * 0.3, CY - R * 0.3, R * 0.1, CX, CY, R);
-  grad.addColorStop(0, "rgba(70,55,130,0.55)");
-  grad.addColorStop(1, "rgba(10,8,30,0.15)");
+  grad.addColorStop(0, "rgba(95,75,175,0.98)");
+  grad.addColorStop(0.65, "rgba(48,38,100,0.97)");
+  grad.addColorStop(1, "rgba(22,17,58,0.95)");
   fgx.beginPath();
   fgx.arc(CX, CY, R, 0, Math.PI * 2);
   fgx.fillStyle = grad;
   fgx.fill();
-  fgx.strokeStyle = "rgba(167,139,250,0.35)";
+  fgx.strokeStyle = "rgba(167,139,250,0.45)";
   fgx.lineWidth = 1.2;
   fgx.stroke();
 }
@@ -485,7 +492,10 @@ function drawTexturedContinents() {
       brightness = d > 0.08 ? 1 : d < -0.08 ? 0.32 : 0.32 + ((d + 0.08) / 0.16) * 0.68;
     }
 
-    fgx.globalAlpha = 0.55 + p.z * 0.4; // más cerca del centro del globo, más opaco
+    // antes esto arrancaba en 0.55 de opacidad (bastante transparente);
+    // ahora arranca mucho más alto, para que los países se lean claros
+    // en vez de verse como puntos sueltos con el fondo asomando entre medio
+    fgx.globalAlpha = 0.88 + p.z * 0.12;
     if (brightness >= 1) {
       fgx.fillStyle = `rgb(${pt.color})`;
     } else {
@@ -502,7 +512,7 @@ function drawTexturedContinents() {
 // respaldo: las manchas estilizadas de siempre, mientras la textura real
 // no haya terminado de cargar (o si no llegó a cargar nunca)
 function drawFallbackContinents() {
-  fgx.fillStyle = "rgba(180,170,230,0.55)";
+  fgx.fillStyle = "rgba(190,180,235,0.95)";
   for (const c of CONTINENTS) {
     for (let dlat = -c.latR; dlat <= c.latR; dlat += 5) {
       for (let dlon = -c.lonR; dlon <= c.lonR; dlon += 5) {
@@ -511,9 +521,9 @@ function drawFallbackContinents() {
         const p = project(c.latC + dlat, c.lonC + dlon, rotY, tiltX);
         if (p.z < 0.05) continue;
         const sx = CX + p.x * R, sy = CY - p.y * R;
-        fgx.globalAlpha = 0.3 + p.z * 0.45;
+        fgx.globalAlpha = 0.8 + p.z * 0.2;
         fgx.beginPath();
-        fgx.arc(sx, sy, 1.3, 0, Math.PI * 2);
+        fgx.arc(sx, sy, 1.4, 0, Math.PI * 2);
         fgx.fill();
       }
     }
